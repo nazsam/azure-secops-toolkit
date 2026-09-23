@@ -1,0 +1,16 @@
+// Title: Sign-ins from IP addresses on active threat intelligence indicators
+// Tactic: Initial Access | Technique: T1078
+// Why: joins your TI feeds (ThreatIntelligenceIndicator) against Entra sign-ins.
+//      Newer workspaces may use the ThreatIntelIndicators table instead; adjust the source.
+let indicators = ThreatIntelligenceIndicator
+    | where TimeGenerated > ago(30d)
+    | where Active == true and ExpirationDateTime > now()
+    | where isnotempty(NetworkIP)
+    | summarize arg_max(TimeGenerated, *) by NetworkIP
+    | project NetworkIP, ThreatType, ConfidenceScore, Description, SourceSystem;
+SigninLogs
+| where TimeGenerated > ago(7d)
+| join kind=inner indicators on $left.IPAddress == $right.NetworkIP
+| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, AppDisplayName, ThreatType,
+          ConfidenceScore, Description, SourceSystem
+| order by TimeGenerated desc

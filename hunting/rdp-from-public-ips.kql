@@ -1,0 +1,10 @@
+// Title: Inbound RDP connections from public IP addresses
+// Tactic: Initial Access, Lateral Movement | Technique: T1133, T1021.001
+// Why: RDP should never be reachable from the internet. Anything here means an exposed host.
+DeviceNetworkEvents
+| where TimeGenerated > ago(7d)
+| where ActionType == "InboundConnectionAccepted" and LocalPort == 3389
+| where RemoteIPType == "Public"
+| summarize Connections = count(), RemoteIPs = make_set(RemoteIP, 50), FirstSeen = min(TimeGenerated),
+            LastSeen = max(TimeGenerated) by DeviceName
+| order by Connections desc

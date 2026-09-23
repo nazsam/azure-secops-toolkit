@@ -1,0 +1,12 @@
+// Title: Successful sign-ins using legacy authentication
+// Tactic: Initial Access | Technique: T1078.004
+// Why: legacy protocols (IMAP, POP, SMTP AUTH, older Office clients) bypass MFA and
+//      Conditional Access. Any success here is either a gap to close or an attacker.
+SigninLogs
+| where TimeGenerated > ago(14d)
+| where ResultType == "0"
+| where ClientAppUsed in ("Exchange ActiveSync", "IMAP4", "POP3", "Authenticated SMTP", "Other clients",
+                          "Exchange Web Services", "MAPI Over HTTP", "Offline Address Book", "AutoDiscover")
+| summarize Signins = count(), IPs = make_set(IPAddress, 20), Apps = make_set(AppDisplayName, 10),
+            LastSeen = max(TimeGenerated) by UserPrincipalName, ClientAppUsed
+| order by Signins desc

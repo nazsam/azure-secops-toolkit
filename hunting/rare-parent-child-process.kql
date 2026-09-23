@@ -1,0 +1,10 @@
+// Title: Office applications spawning script interpreters
+// Tactic: Execution | Technique: T1204.002, T1059
+// Why: Word or Excel launching PowerShell, cmd, wscript or mshta is a strong phishing signal.
+DeviceProcessEvents
+| where TimeGenerated > ago(7d)
+| where InitiatingProcessFileName in~ ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe")
+| where FileName in~ ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe",
+                      "rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe")
+| project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, FileName, ProcessCommandLine
+| order by TimeGenerated desc

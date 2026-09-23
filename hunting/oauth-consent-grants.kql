@@ -1,0 +1,15 @@
+// Title: OAuth application consent grants with risky permissions
+// Tactic: Persistence, Credential Access | Technique: T1528
+// Why: illicit consent grants let an attacker read mail and files without a password.
+let risky = dynamic(["Mail.Read", "Mail.ReadWrite", "Mail.Send", "Files.Read.All", "Files.ReadWrite.All",
+                     "Sites.Read.All", "Directory.ReadWrite.All", "offline_access", "full_access_as_app"]);
+AuditLogs
+| where TimeGenerated > ago(30d)
+| where OperationName == "Consent to application"
+| extend
+    AppName = tostring(TargetResources[0].displayName),
+    User = tostring(InitiatedBy.user.userPrincipalName),
+    Props = tostring(TargetResources[0].modifiedProperties)
+| where Props has_any (risky)
+| project TimeGenerated, User, AppName, Result, Props
+| order by TimeGenerated desc

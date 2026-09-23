@@ -1,0 +1,20 @@
+// Title: Dormant accounts signing in again
+// Tactic: Initial Access, Persistence | Technique: T1078
+// Why: accounts silent for 60+ days that suddenly sign in are often forgotten, reused or
+//      compromised. Check whether the owner still needs access.
+let lookback = 90d;
+let dormant_days = 60d;
+let recent = 1d;
+let history = SigninLogs
+    | where TimeGenerated between (ago(lookback) .. ago(recent))
+    | where ResultType == "0"
+    | summarize PreviousSignin = max(TimeGenerated) by UserPrincipalName;
+SigninLogs
+| where TimeGenerated > ago(recent)
+| where ResultType == "0"
+| summarize LatestSignin = max(TimeGenerated), IPs = make_set(IPAddress, 10) by UserPrincipalName
+| join kind=inner history on UserPrincipalName
+| where LatestSignin - PreviousSignin > dormant_days
+| extend DaysDormant = datetime_diff("day", LatestSignin, PreviousSignin)
+| project UserPrincipalName, PreviousSignin, LatestSignin, DaysDormant, IPs
+| order by DaysDormant desc
