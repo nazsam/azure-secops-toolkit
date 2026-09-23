@@ -1,0 +1,6 @@
+cveId,assetName,cvssScore,exploitAvailable,internetExposed,assetCriticality,firstSeen
+CVE-2024-3400,fw-edge-01,10.0,true,true,high,2026-09-01
+CVE-2023-4966,vm-citrix-01,9.4,true,true,high,2026-09-18
+CVE-2024-21413,wks-finance-07,9.8,true,false,medium,2026-09-10
+CVE-2023-44487,app-internal-02,7.5,false,false,low,2026-08-01
+CVE-2022-22965,api-orders-01,9.8,false,true,medium,2026-09-15

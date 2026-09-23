@@ -1,0 +1,4 @@
+Phishing wave observed. Payload hosted at hxxps://login-micros0ft[.]com/auth?id=42 and
+cdn-update[.]net. C2 beacon to 185.220.101[.]45 and 10.0.0.5 (internal, ignore).
+Dropper SHA256: 3F79BB7B435B05321651DAEFD374CDC681DC06FAA65E374E38337B88CA046DEA
+Sender: billing[@]contoso-invoices.com. See notes.txt for details.
