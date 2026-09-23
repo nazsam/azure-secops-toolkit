@@ -1,0 +1,41 @@
+name: Deploy to Azure
+
+# Manual deployment using OpenID Connect (no stored secrets).
+# Set repository variables AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, RESOURCE_GROUP, WORKSPACE_NAME
+# and give the federated identity Microsoft Sentinel Contributor on the resource group.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_playbooks:
+        description: "Also deploy the Logic App playbooks"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e . && secops validate && secops build-arm --out build/analytics-rules.json
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Workspace and Sentinel
+        run: az deployment group create -g "${{ vars.RESOURCE_GROUP }}" -f infra/sentinel.bicep -p workspaceName="${{ vars.WORKSPACE_NAME }}"
+      - name: Analytics rules
+        run: az deployment group create -g "${{ vars.RESOURCE_GROUP }}" -f build/analytics-rules.json -p workspaceName="${{ vars.WORKSPACE_NAME }}"
+      - name: Playbooks
+        if: ${{ inputs.deploy_playbooks }}
+        run: |
+          az deployment group create -g "${{ vars.RESOURCE_GROUP }}" -f playbooks/Revoke-EntraUserSessions.json -p PlaybookName=pb-revoke-sessions
+          az deployment group create -g "${{ vars.RESOURCE_GROUP }}" -f playbooks/Isolate-MDEDevice.json -p PlaybookName=pb-isolate-device

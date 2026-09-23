@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  detections:
+    name: Detections, tooling and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest -q
+      - name: Validate analytics rules
+        run: secops validate
+      - name: Compile rules to ARM
+        run: secops build-arm --out build/analytics-rules.json
+      - name: MITRE coverage report is up to date
+        run: |
+          secops coverage
+          git diff --exit-code docs/mitre-coverage.md || (echo "Run 'secops coverage' and commit docs/mitre-coverage.md" && exit 1)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: analytics-rules-arm
+          path: build/analytics-rules.json
+
+  kql:
+    name: KQL syntax (official Kusto parser, C#)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet run --project tools/KqlValidator -- .
+
+  infrastructure:
+    name: Bicep and ARM templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and lint Bicep
+        run: |
+          az bicep install
+          az bicep build --file infra/sentinel.bicep --stdout > /dev/null
+          az bicep build --file infra/subscription.bicep --stdout > /dev/null
+      - name: Playbook and Postman JSON is valid
+        run: |
+          for f in playbooks/*.json postman/*.json; do python -m json.tool "$f" > /dev/null && echo "ok $f"; done
