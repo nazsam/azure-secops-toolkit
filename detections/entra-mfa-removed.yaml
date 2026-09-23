@@ -1,0 +1,34 @@
+id: 7309d2d3-fb26-4c19-afc6-5f971a49b7ff
+name: MFA method removed or per-user MFA disabled
+description: |
+  Security information was deleted from an account or per-user MFA was disabled. Attackers
+  do this after taking over an account so they can register their own method.
+severity: Medium
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: AzureActiveDirectory
+    dataTypes: [AuditLogs]
+queryFrequency: 1h
+queryPeriod: 1h
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [DefenseEvasion, Persistence, CredentialAccess]
+relevantTechniques: [T1556.006]
+query: |
+  AuditLogs
+  | where OperationName has_any ("deleted security info", "Disable Strong Authentication")
+  | extend
+      TargetUser = tostring(TargetResources[0].userPrincipalName),
+      Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),
+      ActorIP = tostring(InitiatedBy.user.ipAddress)
+  | project TimeGenerated, OperationName, Result, TargetUser, Actor, ActorIP, CorrelationId
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: TargetUser
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: ActorIP
+version: 1.0.0

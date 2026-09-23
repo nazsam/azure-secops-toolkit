@@ -1,0 +1,34 @@
+id: d3a28900-a5d0-4c0c-8736-379958d98f6f
+name: Multiple high-severity Defender for Cloud alerts on one resource
+description: |
+  Three or more distinct high-severity Microsoft Defender for Cloud alerts hit the same resource
+  within 24 hours. Clusters like this usually mean an active intrusion, not noise.
+severity: High
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: AzureSecurityCenter
+    dataTypes: [SecurityAlert]
+queryFrequency: 1h
+queryPeriod: 1d
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [Execution, Persistence, Impact]
+relevantTechniques: [T1190, T1496]
+query: |
+  SecurityAlert
+  | where ProductName in ("Azure Security Center", "Microsoft Defender for Cloud")
+  | where AlertSeverity == "High"
+  | summarize
+      AlertCount = dcount(AlertName),
+      Alerts = make_set(AlertName, 20),
+      Tactics = make_set(Tactics, 10),
+      FirstAlert = min(TimeGenerated),
+      LastAlert = max(TimeGenerated)
+      by CompromisedEntity, ResourceId = tostring(parse_json(ExtendedProperties).resourceId)
+  | where AlertCount >= 3
+entityMappings:
+  - entityType: Host
+    fieldMappings:
+      - identifier: HostName
+        columnName: CompromisedEntity
+version: 1.0.0

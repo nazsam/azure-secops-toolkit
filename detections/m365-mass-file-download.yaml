@@ -1,0 +1,29 @@
+id: e5f1024f-a7c7-46d9-9174-5210c9413629
+name: Mass file download from SharePoint or OneDrive
+description: |
+  A user downloaded an unusually large number of distinct files in one hour, a common
+  data exfiltration pattern before a departure or after an account takeover.
+severity: Medium
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: Office365
+    dataTypes: [OfficeActivity]
+queryFrequency: 1h
+queryPeriod: 1h
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [Exfiltration, Collection]
+relevantTechniques: [T1530]
+query: |
+  let min_files = 200;
+  OfficeActivity
+  | where Operation in ("FileDownloaded", "FileSyncDownloadedFull")
+  | summarize Files = dcount(OfficeObjectId), Sites = make_set(Site_Url, 10), IPs = make_set(ClientIP, 10)
+      by UserId, bin(TimeGenerated, 1h)
+  | where Files >= min_files
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: UserId
+version: 1.0.0

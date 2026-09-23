@@ -1,0 +1,47 @@
+id: 9e9ad6f9-1e6d-49e1-84db-c52d19656a4a
+name: NSG rule opens management ports to the internet
+description: |
+  A network security group rule was created or changed to allow SSH, RDP or WinRM from any
+  source. Exposed management ports are one of the most common cloud intrusion paths.
+severity: High
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: AzureActivity
+    dataTypes: [AzureActivity]
+queryFrequency: 30m
+queryPeriod: 30m
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [DefenseEvasion, InitialAccess]
+relevantTechniques: [T1562.007]
+query: |
+  let mgmt_ports = dynamic(["22", "3389", "5985", "5986"]);
+  AzureActivity
+  | where OperationNameValue =~ "MICROSOFT.NETWORK/NETWORKSECURITYGROUPS/SECURITYRULES/WRITE"
+  | where ActivityStatusValue in~ ("Success", "Succeeded", "Start")
+  | extend Body = parse_json(tostring(parse_json(Properties).requestbody))
+  | extend Rule = Body.properties
+  | extend
+      Access = tostring(Rule.access),
+      Direction = tostring(Rule.direction),
+      Source = tostring(Rule.sourceAddressPrefix),
+      Port = tostring(Rule.destinationPortRange),
+      Ports = tostring(Rule.destinationPortRanges)
+  | where Access =~ "Allow" and Direction =~ "Inbound"
+  | where Source in ("*", "0.0.0.0/0", "Internet", "Any")
+  | where Port in (mgmt_ports) or Port == "*" or Ports has_any (mgmt_ports)
+  | project TimeGenerated, Caller, CallerIpAddress, ResourceGroup, _ResourceId, Source, Port, Ports
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: Caller
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: CallerIpAddress
+  - entityType: AzureResource
+    fieldMappings:
+      - identifier: ResourceId
+        columnName: _ResourceId
+version: 1.0.0

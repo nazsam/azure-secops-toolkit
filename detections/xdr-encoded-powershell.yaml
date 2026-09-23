@@ -1,0 +1,40 @@
+id: 859af638-6dca-4ab9-b7f2-87270919d00b
+name: Encoded PowerShell command on an endpoint
+description: |
+  PowerShell started with a long base64 encoded command, a technique used to hide payloads.
+  Data comes from Microsoft Defender XDR (Defender for Endpoint) advanced hunting tables.
+severity: Medium
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: MicrosoftThreatProtection
+    dataTypes: [DeviceProcessEvents]
+queryFrequency: 1h
+queryPeriod: 1h
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [Execution, DefenseEvasion]
+relevantTechniques: [T1059.001, T1027]
+query: |
+  DeviceProcessEvents
+  | where FileName in~ ("powershell.exe", "pwsh.exe")
+  | where ProcessCommandLine matches regex @"(?i)\s-(e|en|enc|enco|encodedcommand)\s+[A-Za-z0-9+/=]{40,}"
+  | where InitiatingProcessFileName !in~ ("ccmexec.exe", "senseir.exe")
+  | extend HashAlgorithm = "SHA256"
+  | project TimeGenerated, DeviceName, AccountName, AccountDomain, ProcessCommandLine,
+      InitiatingProcessFileName, InitiatingProcessCommandLine, SHA256, HashAlgorithm
+entityMappings:
+  - entityType: Host
+    fieldMappings:
+      - identifier: HostName
+        columnName: DeviceName
+  - entityType: Account
+    fieldMappings:
+      - identifier: Name
+        columnName: AccountName
+  - entityType: FileHash
+    fieldMappings:
+      - identifier: Algorithm
+        columnName: HashAlgorithm
+      - identifier: Value
+        columnName: SHA256
+version: 1.0.0

@@ -1,0 +1,48 @@
+id: 7391f41c-d00e-4fa2-94bf-00249d88f7d0
+name: Privileged Entra ID role assigned
+description: |
+  A user or service principal was added to a highly privileged Entra ID role. Every
+  assignment outside the approved PIM process should be reviewed.
+severity: High
+kind: Scheduled
+requiredDataConnectors:
+  - connectorId: AzureActiveDirectory
+    dataTypes: [AuditLogs]
+queryFrequency: 30m
+queryPeriod: 30m
+triggerOperator: gt
+triggerThreshold: 0
+tactics: [PrivilegeEscalation, Persistence]
+relevantTechniques: [T1098.003]
+query: |
+  let privileged_roles = dynamic([
+      "Global Administrator", "Privileged Role Administrator", "Privileged Authentication Administrator",
+      "Security Administrator", "Application Administrator", "Cloud Application Administrator",
+      "Exchange Administrator", "User Administrator", "Conditional Access Administrator"]);
+  AuditLogs
+  | where OperationName in ("Add member to role", "Add eligible member to role")
+  | where Result == "success"
+  | mv-expand Target = TargetResources
+  | mv-expand Prop = Target.modifiedProperties
+  | where tostring(Prop.displayName) == "Role.DisplayName"
+  | extend RoleName = trim(@'"', tostring(Prop.newValue))
+  | where RoleName in (privileged_roles)
+  | extend
+      TargetUser = tostring(Target.userPrincipalName),
+      Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),
+      ActorIP = tostring(InitiatedBy.user.ipAddress)
+  | project TimeGenerated, OperationName, RoleName, TargetUser, Actor, ActorIP, CorrelationId
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: TargetUser
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: Actor
+  - entityType: IP
+    fieldMappings:
+      - identifier: Address
+        columnName: ActorIP
+version: 1.0.0
