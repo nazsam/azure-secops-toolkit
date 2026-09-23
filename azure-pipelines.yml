@@ -1,0 +1,56 @@
+# Azure DevOps equivalent of .github/workflows/ci.yml and deploy.yml
+trigger:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: sc-secops          # workload identity federation service connection
+  resourceGroup: rg-secops
+  workspaceName: law-secops
+
+stages:
+  - stage: Validate
+    jobs:
+      - job: Detections
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+          - script: pip install -e ".[dev]" && ruff check src tests && pytest -q --junitxml=test-results.xml
+            displayName: Lint and unit tests
+          - task: PublishTestResults@2
+            condition: always()
+            inputs:
+              testResultsFiles: test-results.xml
+          - script: secops validate && secops build-arm --out $(Build.ArtifactStagingDirectory)/analytics-rules.json
+            displayName: Validate and compile analytics rules
+          - task: UseDotNet@2
+            inputs:
+              version: 8.0.x
+          - script: dotnet run --project tools/KqlValidator -- .
+            displayName: KQL syntax check
+          - publish: $(Build.ArtifactStagingDirectory)
+            artifact: arm
+
+  - stage: Deploy
+    dependsOn: Validate
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Sentinel
+        environment: secops-production    # add an approval check on this environment
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az deployment group create -g $(resourceGroup) -f infra/sentinel.bicep -p workspaceName=$(workspaceName)
+                      az deployment group create -g $(resourceGroup) -f $(Pipeline.Workspace)/arm/analytics-rules.json -p workspaceName=$(workspaceName)
